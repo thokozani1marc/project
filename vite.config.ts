@@ -7,31 +7,33 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
+      registerType: 'prompt',
+      includeAssets: ['T.ico', 'T.png', 'T.svg'],
       manifest: {
-        name: 'My PWA App',
-        short_name: 'PWA App',
-        description: 'My Progressive Web App',
+        name: 'TimeSaver Laundry App',
+        short_name: 'TimeSaver',
+        description: 'Your smart laundry management app',
         theme_color: '#ffffff',
+        start_url: '/',
+        display: 'standalone',
+        background_color: '#ffffff',
         icons: [
           {
-            src: 'pwa-192x192.png',
-            sizes: '192x192',
-            type: 'image/png'
-          },
-          {
-            src: 'pwa-512x512.png',
-            sizes: '512x512',
-            type: 'image/png'
-          },
-          {
-            src: 'pwa-512x512.png',
+            src: 'T.png',
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'any maskable'
+            purpose: 'any'
+          },
+          {
+            src: 'T.svg',
+            sizes: 'any',
+            type: 'image/svg+xml',
+            purpose: 'any'
           }
         ]
+      },
+      devOptions: {
+        enabled: true
       }
     })
   ],

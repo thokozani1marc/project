@@ -49,6 +49,7 @@ interface Order {
   collectionDate: string;
   notes: string;
   items: OrderItem[];
+  salesperson: string;
 }
 
 const ORDER_STATUSES = ['pending', 'processing', 'ready', 'completed', 'voided'];
@@ -217,13 +218,13 @@ export function Orders() {
     const total = subtotal + tax;
 
     const newOrder: Order = {
-      id: selectedOrder?.id || getNextOrderNumber(),
+      id: selectedOrder?.id || getNextOrderNumber().toString(),
       customer: selectedCustomer,
-      status: selectedOrder?.status || 'pending',
+      status: 'pending',
       total,
       tax,
-      date: selectedOrder?.date || new Date(),
-      paymentStatus: 'pending',
+      date: new Date(),
+      paymentStatus: paymentMethod === 'pay_later' ? 'pending' : 'paid',
       paymentMethod,
       collectionDate,
       notes,
@@ -231,7 +232,8 @@ export function Orders() {
         ...item,
         colors: selectedColors[item.serviceId],
         brandId: selectedBrands[item.serviceId]
-      }))
+      })),
+      salesperson: user?.name || 'Unknown'
     };
 
     if (selectedOrder) {

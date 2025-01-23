@@ -25,6 +25,7 @@ interface Order {
   date: Date;
   items: OrderItem[];
   collectionDate: string;
+  salesperson: string;
 }
 
 const services: Service[] = [
@@ -79,6 +80,7 @@ export function Collections() {
               <div>
                 <h3 className="text-lg font-medium text-gray-900">{order.customer}</h3>
                 <p className="text-sm text-gray-500">Order #{order.id}</p>
+                <p className="text-sm text-gray-500">By: {order.salesperson}</p>
               </div>
               <Package className="h-8 w-8 text-indigo-600" />
             </div>
