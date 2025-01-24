@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'r
 import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
 import { Orders } from './pages/Orders';
-import { Collections } from './pages/Collections';
+import { Collection } from './pages/Collection';
 import { VoidOrders } from './pages/VoidOrders';
 import { Customers } from './pages/Customers';
 import { Reports } from './pages/Reports';
@@ -44,87 +44,21 @@ function App() {
     <AuthProvider>
       <Router>
         <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route
-            path="/"
-            element={
-              <ProtectedRoute>
-                <Layout />
-              </ProtectedRoute>
-            }
-          >
-            <Route 
-              index 
-              element={
-                <ProtectedRoute allowedRoles={['admin']}>
-                  <Dashboard />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="orders" 
-              element={
-                <ProtectedRoute>
-                  <Orders />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="collections" 
-              element={
-                <ProtectedRoute>
-                  <Collections />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="void-orders" 
-              element={
-                <ProtectedRoute allowedRoles={['admin']}>
-                  <VoidOrders />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="customers" 
-              element={
-                <ProtectedRoute>
-                  <Customers />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="services" 
-              element={
-                <ProtectedRoute allowedRoles={['admin']}>
-                  <Services />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="settings" 
-              element={
-                <ProtectedRoute allowedRoles={['admin']}>
-                  <Settings />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="reports" 
-              element={
-                <ProtectedRoute allowedRoles={['admin']}>
-                  <Reports />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="end-of-shift" 
-              element={
-                <ProtectedRoute>
-                  <EndOfShift />
-                </ProtectedRoute>
-              } 
-            />
+          <Route path="login" element={<Login />} />
+          <Route path="/" element={
+            <ProtectedRoute>
+              <Layout />
+            </ProtectedRoute>
+          }>
+            <Route index element={<Dashboard />} />
+            <Route path="orders" element={<Orders />} />
+            <Route path="collection" element={<Collection />} />
+            <Route path="void-orders" element={<VoidOrders />} />
+            <Route path="customers" element={<Customers />} />
+            <Route path="services" element={<Services />} />
+            <Route path="settings" element={<Settings />} />
+            <Route path="reports" element={<Reports />} />
+            <Route path="end-of-shift" element={<EndOfShift />} />
           </Route>
         </Routes>
       </Router>

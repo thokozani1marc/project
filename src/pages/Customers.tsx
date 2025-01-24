@@ -1,33 +1,85 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { X } from 'lucide-react';
 import { getStorageItem, setStorageItem } from '../utils/storage';
+import { clsx } from 'clsx';
+import { formatPrice } from '../utils/formatPrice';
 
 interface Customer {
   id: string;
   name: string;
   email: string;
   phone: string;
+  address: string;
   orders: number;
+}
+
+interface Order {
+  id: string;
+  customer: string;
+  date: string;
+  total: number;
+  status: string;
 }
 
 export function Customers() {
   const [customers, setCustomers] = useState<Customer[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
-    phone: ''
+    phone: '',
+    address: ''
   });
 
-  // Load customers from localStorage on component mount
   useEffect(() => {
     const savedCustomers = getStorageItem<Customer[]>('customers', []);
+    const savedOrders = getStorageItem<Order[]>('orders', []);
     setCustomers(savedCustomers);
+    setOrders(savedOrders);
   }, []);
 
+  // Calculate customer stats
+  const customerStats = useMemo(() => {
+    const stats = customers.map(customer => {
+      const customerOrders = orders.filter(order => order.customer === customer.id && order.status !== 'voided');
+      const totalSpent = customerOrders.reduce((sum, order) => sum + order.total, 0);
+      const orderCount = customerOrders.length;
+      
+      // Group orders by date (last 3 months, last 6 months, last year, all time)
+      const now = new Date();
+      const threeMonthsAgo = new Date(now.setMonth(now.getMonth() - 3));
+      const sixMonthsAgo = new Date(now.setMonth(now.getMonth() - 6));
+      const oneYearAgo = new Date(now.setFullYear(now.getFullYear() - 1));
+
+      const ordersByPeriod = {
+        threeMonths: customerOrders.filter(order => new Date(order.date) >= threeMonthsAgo).length,
+        sixMonths: customerOrders.filter(order => new Date(order.date) >= sixMonthsAgo).length,
+        oneYear: customerOrders.filter(order => new Date(order.date) >= oneYearAgo).length,
+        allTime: orderCount
+      };
+
+      return {
+        ...customer,
+        totalSpent,
+        orderCount,
+        ordersByPeriod
+      };
+    });
+
+    return stats;
+  }, [customers, orders]);
+
+  const getCustomerCategory = (totalSpent: number) => {
+    if (totalSpent >= 5000) return 'VIP';
+    if (totalSpent >= 2000) return 'Regular';
+    return 'New';
+  };
+
   const resetForm = () => {
-    setFormData({ name: '', email: '', phone: '' });
+    setFormData({ name: '', email: '', phone: '', address: '' });
     setEditingCustomer(null);
   };
 
@@ -37,7 +89,8 @@ export function Customers() {
       setFormData({
         name: customer.name,
         email: customer.email,
-        phone: customer.phone
+        phone: customer.phone,
+        address: customer.address
       });
     } else {
       resetForm();
@@ -100,37 +153,59 @@ export function Customers() {
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Name
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Email
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Contact
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Phone
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Orders
               </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Actions
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Total Spent
+              </th>
+              <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Category
+              </th>
+              <th scope="col" className="relative px-6 py-3">
+                <span className="sr-only">Actions</span>
               </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {customers.map((customer) => (
+            {customerStats.map((customer) => (
               <tr key={customer.id}>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="text-sm font-medium text-gray-900">{customer.name}</div>
+                  <div className="text-sm text-gray-500">{customer.address}</div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="text-sm text-gray-900">{customer.phone}</div>
                   <div className="text-sm text-gray-500">{customer.email}</div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-gray-500">{customer.phone}</div>
+                  <div className="text-sm text-gray-900">
+                    Total: {customer.orderCount}
+                  </div>
+                  <div className="text-xs text-gray-500">
+                    Last 3M: {customer.ordersByPeriod.threeMonths} |
+                    Last 6M: {customer.ordersByPeriod.sixMonths} |
+                    Last 1Y: {customer.ordersByPeriod.oneYear}
+                  </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                  {formatPrice(customer.totalSpent)}
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <div className="text-sm text-gray-500">{customer.orders}</div>
+                  <span className={clsx(
+                    "px-2 inline-flex text-xs leading-5 font-semibold rounded-full",
+                    getCustomerCategory(customer.totalSpent) === 'VIP' ? 'bg-purple-100 text-purple-800' :
+                    getCustomerCategory(customer.totalSpent) === 'Regular' ? 'bg-green-100 text-green-800' :
+                    'bg-gray-100 text-gray-800'
+                  )}>
+                    {getCustomerCategory(customer.totalSpent)}
+                  </span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                   <button
@@ -203,6 +278,19 @@ export function Customers() {
                   id="phone"
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                  required
+                />
+              </div>
+              <div>
+                <label htmlFor="address" className="block text-sm font-medium text-gray-700">
+                  Address
+                </label>
+                <input
+                  type="text"
+                  id="address"
+                  value={formData.address}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                   required
                 />

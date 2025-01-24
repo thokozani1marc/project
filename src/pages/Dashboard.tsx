@@ -46,28 +46,25 @@ interface Service {
   id: string;
   name: string;
   price: number;
+  description: string;
+  categoryId: string;
 }
-
-const services: Service[] = [
-  { id: '1', name: 'Wash & Fold', price: 89.99 },
-  { id: '2', name: 'Dry Cleaning', price: 199.99 },
-  { id: '3', name: 'Express Service', price: 249.99 },
-  { id: '4', name: 'Ironing', price: 59.99 },
-  { id: '5', name: 'Stain Removal', price: 149.99 }
-];
 
 const formatPrice = (amount: number) => `R${amount.toFixed(2)}`;
 
 export function Dashboard() {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
   const [todayOrders, setTodayOrders] = useState<Order[]>([]);
   const [weeklyData, setWeeklyData] = useState<{ dates: string[], amounts: number[] }>({ dates: [], amounts: [] });
   const [serviceData, setServiceData] = useState<{ labels: string[], data: number[] }>({ labels: [], data: [] });
 
-  // Load orders from localStorage
+  // Load data from localStorage
   useEffect(() => {
     const savedOrders = getStorageItem<Order[]>('orders', []);
+    const savedServices = getStorageItem<Service[]>('services', []);
     setOrders(savedOrders);
+    setServices(savedServices);
   }, []);
 
   // Calculate today's orders
@@ -100,6 +97,8 @@ export function Dashboard() {
 
   // Calculate service data for pie chart
   useEffect(() => {
+    if (services.length === 0) return;
+
     const serviceAmounts = services.map(service => {
       return todayOrders.reduce((sum, order) => {
         const serviceItems = order.items.filter(item => item.serviceId === service.id);
@@ -107,11 +106,15 @@ export function Dashboard() {
       }, 0);
     });
 
+    // Only include services with non-zero amounts
+    const nonZeroServices = services.filter((_, index) => serviceAmounts[index] > 0);
+    const nonZeroAmounts = serviceAmounts.filter(amount => amount > 0);
+
     setServiceData({
-      labels: services.map(s => s.name),
-      data: serviceAmounts
+      labels: nonZeroServices.map(s => s.name),
+      data: nonZeroAmounts
     });
-  }, [todayOrders]);
+  }, [todayOrders, services]);
 
   // Calculate statistics
   const totalCustomers = new Set(orders.map(order => order.customer)).size;
@@ -147,14 +150,24 @@ export function Dashboard() {
           'rgba(54, 162, 235, 0.5)',
           'rgba(255, 206, 86, 0.5)',
           'rgba(75, 192, 192, 0.5)',
-          'rgba(153, 102, 255, 0.5)'
+          'rgba(153, 102, 255, 0.5)',
+          'rgba(255, 159, 64, 0.5)',
+          'rgba(201, 203, 207, 0.5)',
+          'rgba(255, 99, 132, 0.5)',
+          'rgba(54, 162, 235, 0.5)',
+          'rgba(255, 206, 86, 0.5)'
         ],
         borderColor: [
           'rgba(255, 99, 132, 1)',
           'rgba(54, 162, 235, 1)',
           'rgba(255, 206, 86, 1)',
           'rgba(75, 192, 192, 1)',
-          'rgba(153, 102, 255, 1)'
+          'rgba(153, 102, 255, 1)',
+          'rgba(255, 159, 64, 1)',
+          'rgba(201, 203, 207, 1)',
+          'rgba(255, 99, 132, 1)',
+          'rgba(54, 162, 235, 1)',
+          'rgba(255, 206, 86, 1)'
         ],
         borderWidth: 1
       }

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { format } from 'date-fns';
 import { Package, Search } from 'lucide-react';
-import { getStorageItem } from '../utils/storage';
+import { getStorageItem, setStorageItem } from '../utils/storage';
+import clsx from 'clsx';
 
 interface Service {
   id: string;
@@ -26,6 +27,7 @@ interface Order {
   items: OrderItem[];
   collectionDate: string;
   salesperson: string;
+  paymentMethod: string;
 }
 
 const services: Service[] = [
@@ -44,9 +46,16 @@ export function Collections() {
 
   useEffect(() => {
     const savedOrders = getStorageItem<Order[]>('orders', []);
-    const readyOrders = savedOrders.filter(order => 
+    const updatedOrders = savedOrders.map(order => ({
+      ...order,
+      salesperson: order.salesperson || 'Unknown'
+    }));
+    const readyOrders = updatedOrders.filter(order => 
       order.status === 'ready' || order.status === 'processing'
     );
+    if (JSON.stringify(savedOrders) !== JSON.stringify(updatedOrders)) {
+      setStorageItem('orders', updatedOrders);
+    }
     setOrders(readyOrders);
   }, []);
 
@@ -81,6 +90,17 @@ export function Collections() {
                 <h3 className="text-lg font-medium text-gray-900">{order.customer}</h3>
                 <p className="text-sm text-gray-500">Order #{order.id}</p>
                 <p className="text-sm text-gray-500">By: {order.salesperson}</p>
+                <p className="text-sm">
+                  <span className={clsx(
+                    'px-2 py-1 text-xs font-medium rounded-full',
+                    order.paymentMethod === 'cash' ? 'bg-green-100 text-green-800' :
+                    order.paymentMethod === 'card' ? 'bg-blue-100 text-blue-800' :
+                    'bg-yellow-100 text-yellow-800'
+                  )}>
+                    {order.paymentMethod === 'pay_later' ? 'Pay Later' :
+                     order.paymentMethod.charAt(0).toUpperCase() + order.paymentMethod.slice(1)}
+                  </span>
+                </p>
               </div>
               <Package className="h-8 w-8 text-indigo-600" />
             </div>

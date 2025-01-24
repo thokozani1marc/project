@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, Settings as SettingsIcon, AlertCircle, X } from 'lucide-react';
+import { Users, Settings as SettingsIcon, AlertCircle, X, MessageSquare } from 'lucide-react';
 import { getStorageItem, setStorageItem } from '../utils/storage';
 import { clsx } from 'clsx';
 
@@ -24,10 +24,15 @@ interface CompanySettings {
   enableTax: boolean;
   taxNumber: string;
   vatPercentage: string;
+  smsTemplates: {
+    pending: string;
+    ready: string;
+    completed: string;
+  };
 }
 
 export function Settings() {
-  const [activeTab, setActiveTab] = useState<'staff' | 'company'>('staff');
+  const [activeTab, setActiveTab] = useState<'staff' | 'company' | 'sms'>('staff');
   const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null);
@@ -41,7 +46,12 @@ export function Settings() {
     address: '',
     enableTax: false,
     taxNumber: '',
-    vatPercentage: '15'
+    vatPercentage: '15',
+    smsTemplates: {
+      pending: 'Dear {customer}, your order #{orderId} has been received and is pending processing.',
+      ready: 'Dear {customer}, your order #{orderId} is ready for collection.',
+      completed: 'Dear {customer}, thank you for collecting your order #{orderId}. We appreciate your business!'
+    }
   });
   
   const [staffForm, setStaffForm] = useState<Partial<StaffMember>>({
@@ -55,8 +65,7 @@ export function Settings() {
   });
 
   useEffect(() => {
-    const savedStaffMembers = getStorageItem<StaffMember[]>('staff_members', []);
-    const savedSettings = getStorageItem<CompanySettings>('company_settings', {
+    const defaultSettings: CompanySettings = {
       companyName: '',
       storeName: '',
       phone: '',
@@ -65,10 +74,29 @@ export function Settings() {
       address: '',
       enableTax: false,
       taxNumber: '',
-      vatPercentage: '15'
-    });
+      vatPercentage: '15',
+      smsTemplates: {
+        pending: 'Dear {customer}, your order #{orderId} has been received and is pending processing.',
+        ready: 'Dear {customer}, your order #{orderId} is ready for collection.',
+        completed: 'Dear {customer}, thank you for collecting your order #{orderId}. We appreciate your business!'
+      }
+    };
+
+    const savedStaffMembers = getStorageItem<StaffMember[]>('staff_members', []);
+    const savedSettings = getStorageItem<CompanySettings>('company_settings', defaultSettings);
+    
+    // Ensure smsTemplates exists in saved settings
+    const mergedSettings = {
+      ...defaultSettings,
+      ...savedSettings,
+      smsTemplates: {
+        ...defaultSettings.smsTemplates,
+        ...(savedSettings.smsTemplates || {})
+      }
+    };
+
     setStaffMembers(savedStaffMembers);
-    setCompanySettings(savedSettings);
+    setCompanySettings(mergedSettings);
   }, []);
 
   const showMessage = (message: string, isError = false) => {
@@ -182,31 +210,43 @@ export function Settings() {
         </div>
       )}
 
-      <div className="border-b border-gray-200">
-        <nav className="-mb-px flex space-x-8">
+      <div className="mb-6">
+        <nav className="flex space-x-4">
           <button
             onClick={() => setActiveTab('staff')}
             className={clsx(
-              'py-4 px-1 border-b-2 font-medium text-sm',
+              'px-3 py-2 text-sm font-medium rounded-md',
               activeTab === 'staff'
-                ? 'border-indigo-500 text-indigo-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                ? 'bg-indigo-100 text-indigo-700'
+                : 'text-gray-500 hover:text-gray-700'
             )}
           >
-            <Users className="w-5 h-5 inline-block mr-2" />
+            <Users className="h-5 w-5 inline-block mr-2" />
             Staff Management
           </button>
           <button
             onClick={() => setActiveTab('company')}
             className={clsx(
-              'py-4 px-1 border-b-2 font-medium text-sm',
+              'px-3 py-2 text-sm font-medium rounded-md',
               activeTab === 'company'
-                ? 'border-indigo-500 text-indigo-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                ? 'bg-indigo-100 text-indigo-700'
+                : 'text-gray-500 hover:text-gray-700'
             )}
           >
-            <SettingsIcon className="w-5 h-5 inline-block mr-2" />
+            <SettingsIcon className="h-5 w-5 inline-block mr-2" />
             Company Settings
+          </button>
+          <button
+            onClick={() => setActiveTab('sms')}
+            className={clsx(
+              'px-3 py-2 text-sm font-medium rounded-md',
+              activeTab === 'sms'
+                ? 'bg-indigo-100 text-indigo-700'
+                : 'text-gray-500 hover:text-gray-700'
+            )}
+          >
+            <MessageSquare className="h-5 w-5 inline-block mr-2" />
+            SMS Templates
           </button>
         </nav>
       </div>
@@ -290,7 +330,7 @@ export function Settings() {
             </tbody>
           </table>
         </div>
-      ) : (
+      ) : activeTab === 'company' ? (
         <div className="bg-white shadow-md rounded-lg p-6">
           <form onSubmit={handleCompanySettingsSubmit} className="space-y-6">
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
@@ -466,6 +506,92 @@ export function Settings() {
               >
                 Save Settings
               </button>
+            </div>
+          </form>
+        </div>
+      ) : (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-lg font-medium text-gray-900 mb-6">SMS Templates</h2>
+          <form onSubmit={(e) => {
+            e.preventDefault();
+            setStorageItem('company_settings', companySettings);
+            showMessage('SMS templates saved successfully');
+          }}>
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Order Pending Template
+                </label>
+                <textarea
+                  value={companySettings.smsTemplates.pending}
+                  onChange={(e) => setCompanySettings({
+                    ...companySettings,
+                    smsTemplates: {
+                      ...companySettings.smsTemplates,
+                      pending: e.target.value
+                    }
+                  })}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="Template for pending orders..."
+                />
+                <p className="mt-1 text-sm text-gray-500">
+                  Available variables: {'{customer}'}, {'{orderId}'}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Order Ready Template
+                </label>
+                <textarea
+                  value={companySettings.smsTemplates.ready}
+                  onChange={(e) => setCompanySettings({
+                    ...companySettings,
+                    smsTemplates: {
+                      ...companySettings.smsTemplates,
+                      ready: e.target.value
+                    }
+                  })}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="Template for ready orders..."
+                />
+                <p className="mt-1 text-sm text-gray-500">
+                  Available variables: {'{customer}'}, {'{orderId}'}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Order Completed Template
+                </label>
+                <textarea
+                  value={companySettings.smsTemplates.completed}
+                  onChange={(e) => setCompanySettings({
+                    ...companySettings,
+                    smsTemplates: {
+                      ...companySettings.smsTemplates,
+                      completed: e.target.value
+                    }
+                  })}
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"
+                  placeholder="Template for completed orders..."
+                />
+                <p className="mt-1 text-sm text-gray-500">
+                  Available variables: {'{customer}'}, {'{orderId}'}
+                </p>
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                >
+                  Save Templates
+                </button>
+              </div>
             </div>
           </form>
         </div>

@@ -26,7 +26,7 @@ export function Layout() {
       { name: 'Dashboard', href: '/', icon: LayoutDashboard }
     ] : []),
     { name: 'Orders', href: '/orders', icon: ShoppingBag },
-    { name: 'Collections', href: '/collections', icon: Package },
+    { name: 'Collection', href: '/collection', icon: Package },
     ...(user.role === 'admin' ? [
       { name: 'Void Orders', href: '/void-orders', icon: Ban },
       { name: 'Services', href: '/services', icon: Settings },

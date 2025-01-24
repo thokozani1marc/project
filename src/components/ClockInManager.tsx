@@ -1,54 +1,40 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Clock, Search } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { format } from 'date-fns';
+import { getStorageItem } from '../utils/storage';
 
-interface User {
+interface StaffMember {
   id: string;
-  email: string;
-  name: string;
-  role: 'admin' | 'employee';
-  employeeNumber?: string;
+  firstName: string;
+  lastName: string;
+  gender: 'male' | 'female' | 'other';
+  phone: string;
+  employeeNumber: string;
+  status: 'employee' | 'admin';
 }
-
-const MOCK_USERS = [
-  {
-    id: '1',
-    email: 'admin@example.com',
-    name: 'Admin User',
-    role: 'admin' as const,
-  },
-  {
-    id: '2',
-    email: 'employee@example.com',
-    name: 'Employee User',
-    role: 'employee' as const,
-    employeeNumber: 'EMP001',
-  },
-  {
-    id: '3',
-    email: 'employee2@example.com',
-    name: 'Second Employee',
-    role: 'employee' as const,
-    employeeNumber: 'EMP002',
-  }
-];
 
 export function ClockInManager({ onClose }: { onClose: () => void }) {
   const { verifyCredentials, clockIn, clockOut } = useAuth();
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null);
   const [credentials, setCredentials] = useState('');
   const [error, setError] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [staffMembers, setStaffMembers] = useState<StaffMember[]>([]);
 
-  const filteredUsers = MOCK_USERS.filter(user => 
-    user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (user.employeeNumber && user.employeeNumber.toLowerCase().includes(searchTerm.toLowerCase()))
+  useEffect(() => {
+    const savedStaffMembers = getStorageItem<StaffMember[]>('staff_members', []);
+    setStaffMembers(savedStaffMembers);
+  }, []);
+
+  const filteredStaff = staffMembers.filter(staff => 
+    `${staff.firstName} ${staff.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    staff.phone.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    staff.employeeNumber.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleClockAction = async (user: User, isClockIn: boolean) => {
+  const handleClockAction = async (staff: StaffMember, isClockIn: boolean) => {
     if (!credentials) {
       setError('Please enter credentials');
       return;
@@ -58,10 +44,7 @@ export function ClockInManager({ onClose }: { onClose: () => void }) {
     setError('');
 
     try {
-      const isValid = await verifyCredentials(
-        user.role === 'employee' ? user.employeeNumber! : credentials,
-        credentials
-      );
+      const isValid = await verifyCredentials(staff.employeeNumber, credentials);
 
       if (!isValid) {
         setError('Invalid credentials');
@@ -74,7 +57,7 @@ export function ClockInManager({ onClose }: { onClose: () => void }) {
         await clockOut();
       }
 
-      setSelectedUser(null);
+      setSelectedStaff(null);
       setCredentials('');
     } catch (error) {
       setError('An error occurred. Please try again.');
@@ -96,103 +79,98 @@ export function ClockInManager({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
-        {!selectedUser ? (
+        {!selectedStaff ? (
           <>
             <div className="mb-4">
               <div className="relative">
                 <input
                   type="text"
-                  placeholder="Search by name, email, or employee number..."
+                  placeholder="Search staff..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full px-4 py-2 pl-10 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md pl-10 focus:ring-indigo-500 focus:border-indigo-500"
                 />
                 <Search className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 max-h-96 overflow-y-auto">
-              {filteredUsers.map((user) => (
-                <div
-                  key={user.id}
-                  className="border rounded-lg p-4 hover:border-indigo-500 cursor-pointer"
-                  onClick={() => setSelectedUser(user)}
-                >
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <h3 className="font-medium text-gray-900">{user.name}</h3>
-                      <p className="text-sm text-gray-500">{user.email}</p>
-                      {user.employeeNumber && (
-                        <p className="text-sm text-gray-500">Employee #: {user.employeeNumber}</p>
-                      )}
+            <div className="mt-4">
+              {filteredStaff.length === 0 ? (
+                <p className="text-center text-gray-500">No staff members found</p>
+              ) : (
+                <div className="grid grid-cols-1 gap-4">
+                  {filteredStaff.map((staff) => (
+                    <div
+                      key={staff.id}
+                      onClick={() => setSelectedStaff(staff)}
+                      className="flex items-center justify-between p-4 border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer"
+                    >
+                      <div>
+                        <h3 className="text-lg font-medium text-gray-900">
+                          {staff.firstName} {staff.lastName}
+                        </h3>
+                        <p className="text-sm text-gray-500">
+                          {staff.employeeNumber} • {staff.status.charAt(0).toUpperCase() + staff.status.slice(1)}
+                        </p>
+                      </div>
+                      <Clock className="h-5 w-5 text-gray-400" />
                     </div>
-                    <Clock className="h-5 w-5 text-gray-400" />
-                  </div>
-                </div>
-              ))}
-
-              {filteredUsers.length === 0 && (
-                <div className="text-center py-4 text-gray-500">
-                  No users found matching your search
+                  ))}
                 </div>
               )}
             </div>
           </>
         ) : (
           <div className="space-y-4">
-            <div className="border rounded-lg p-4">
-              <h3 className="font-medium text-gray-900">{selectedUser.name}</h3>
-              <p className="text-sm text-gray-500">{selectedUser.email}</p>
-              {selectedUser.employeeNumber && (
-                <p className="text-sm text-gray-500">Employee #: {selectedUser.employeeNumber}</p>
-              )}
+            <div className="text-center">
+              <h3 className="text-lg font-medium text-gray-900">
+                {selectedStaff.firstName} {selectedStaff.lastName}
+              </h3>
+              <p className="text-sm text-gray-500">
+                {selectedStaff.employeeNumber} • {selectedStaff.status.charAt(0).toUpperCase() + selectedStaff.status.slice(1)}
+              </p>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700">
-                {selectedUser.role === 'admin' ? 'Enter Password' : 'Enter Employee Number'}
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Enter Password
               </label>
               <input
                 type="password"
                 value={credentials}
                 onChange={(e) => setCredentials(e.target.value)}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                placeholder={selectedUser.role === 'admin' ? '••••••••' : 'EMP###'}
+                className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
+                placeholder="Enter your password"
               />
             </div>
 
             {error && (
-              <div className="text-sm text-red-600">
-                {error}
-              </div>
+              <p className="text-sm text-red-600">{error}</p>
             )}
 
-            <div className="flex justify-end space-x-3">
+            <div className="flex space-x-4">
               <button
-                onClick={() => {
-                  setSelectedUser(null);
-                  setCredentials('');
-                  setError('');
-                }}
-                className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50"
+                onClick={() => handleClockAction(selectedStaff, true)}
+                disabled={isProcessing}
+                className="flex-1 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
               >
-                Back
+                Clock In
               </button>
               <button
-                onClick={() => handleClockAction(selectedUser, true)}
+                onClick={() => handleClockAction(selectedStaff, false)}
                 disabled={isProcessing}
-                className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm font-medium disabled:opacity-50"
+                className="flex-1 bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 disabled:opacity-50"
               >
-                {isProcessing ? 'Processing...' : 'Clock In'}
-              </button>
-              <button
-                onClick={() => handleClockAction(selectedUser, false)}
-                disabled={isProcessing}
-                className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm font-medium disabled:opacity-50"
-              >
-                {isProcessing ? 'Processing...' : 'Clock Out'}
+                Clock Out
               </button>
             </div>
+
+            <button
+              onClick={() => setSelectedStaff(null)}
+              className="w-full text-gray-600 hover:text-gray-900"
+            >
+              Back to Staff List
+            </button>
           </div>
         )}
       </div>
