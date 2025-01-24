@@ -24,6 +24,7 @@ interface CompanySettings {
   enableTax: boolean;
   taxNumber: string;
   vatPercentage: string;
+  logo?: string;
   smsTemplates: {
     pending: string;
     ready: string;
@@ -47,6 +48,7 @@ export function Settings() {
     enableTax: false,
     taxNumber: '',
     vatPercentage: '15',
+    logo: '',
     smsTemplates: {
       pending: 'Dear {customer}, your order #{orderId} has been received and is pending processing.',
       ready: 'Dear {customer}, your order #{orderId} is ready for collection.',
@@ -63,6 +65,23 @@ export function Settings() {
     status: 'employee',
     password: ''
   });
+  const [employeeNumberError, setEmployeeNumberError] = useState('');
+
+  // Check if employee number is unique
+  const isEmployeeNumberUnique = (employeeNumber: string) => {
+    return !staffMembers.some(staff => 
+      staff.employeeNumber === employeeNumber && staff.id !== selectedStaff?.id
+    );
+  };
+
+  const handleEmployeeNumberChange = (employeeNumber: string) => {
+    setStaffForm({ ...staffForm, employeeNumber });
+    if (employeeNumber && !isEmployeeNumberUnique(employeeNumber)) {
+      setEmployeeNumberError('This employee number is already in use');
+    } else {
+      setEmployeeNumberError('');
+    }
+  };
 
   useEffect(() => {
     const defaultSettings: CompanySettings = {
@@ -75,6 +94,7 @@ export function Settings() {
       enableTax: false,
       taxNumber: '',
       vatPercentage: '15',
+      logo: '',
       smsTemplates: {
         pending: 'Dear {customer}, your order #{orderId} has been received and is pending processing.',
         ready: 'Dear {customer}, your order #{orderId} is ready for collection.',
@@ -99,7 +119,7 @@ export function Settings() {
     setCompanySettings(mergedSettings);
   }, []);
 
-  const showMessage = (message: string, isError = false) => {
+  const showMessage = (message: string) => {
     setStatusMessage(message);
     setTimeout(() => setStatusMessage(''), 3000);
   };
@@ -121,12 +141,17 @@ export function Settings() {
     e.preventDefault();
     
     if (!staffForm.firstName || !staffForm.lastName || !staffForm.phone || !staffForm.employeeNumber) {
-      showMessage('Please fill in all required fields', true);
+      showMessage('Please fill in all required fields');
       return;
     }
 
     if (!selectedStaff && !staffForm.password) {
-      showMessage('Password is required for new staff members', true);
+      showMessage('Password is required for new staff members');
+      return;
+    }
+
+    if (!isEmployeeNumberUnique(staffForm.employeeNumber!)) {
+      showMessage('Employee number must be unique');
       return;
     }
 
@@ -168,17 +193,31 @@ export function Settings() {
     e.preventDefault();
     
     if (!companySettings.companyName || !companySettings.storeName) {
-      showMessage('Company Name and Store Name are required', true);
+      showMessage('Company Name and Store Name are required');
       return;
     }
 
     if (companySettings.enableTax && !companySettings.taxNumber) {
-      showMessage('Tax Number is required when tax is enabled', true);
+      showMessage('Tax Number is required when tax is enabled');
       return;
     }
 
     setStorageItem('company_settings', companySettings);
     showMessage('Company settings updated successfully');
+  };
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setCompanySettings(prev => ({
+          ...prev,
+          logo: reader.result as string
+        }));
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   return (
@@ -334,6 +373,68 @@ export function Settings() {
         <div className="bg-white shadow-md rounded-lg p-6">
           <form onSubmit={handleCompanySettingsSubmit} className="space-y-6">
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+              {/* Logo Upload Section */}
+              <div className="sm:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Company Logo
+                </label>
+                <div className="flex items-center space-x-4">
+                  {companySettings.logo && (
+                    <div className="relative w-32 h-32">
+                      <img
+                        src={companySettings.logo}
+                        alt="Company Logo"
+                        className="object-contain w-full h-full"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setCompanySettings(prev => ({ ...prev, logo: '' }))}
+                        className="absolute -top-2 -right-2 bg-red-100 rounded-full p-1 text-red-600 hover:bg-red-200"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )}
+                  <div className="flex-1">
+                    <label
+                      htmlFor="logo-upload"
+                      className="relative cursor-pointer rounded-md bg-white font-medium text-indigo-600 focus-within:outline-none focus-within:ring-2 focus-within:ring-indigo-500 focus-within:ring-offset-2 hover:text-indigo-500"
+                    >
+                      <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+                        <div className="space-y-1 text-center">
+                          <svg
+                            className="mx-auto h-12 w-12 text-gray-400"
+                            stroke="currentColor"
+                            fill="none"
+                            viewBox="0 0 48 48"
+                            aria-hidden="true"
+                          >
+                            <path
+                              d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
+                              strokeWidth={2}
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                            />
+                          </svg>
+                          <div className="flex text-sm text-gray-600">
+                            <span>Upload a file</span>
+                            <input
+                              id="logo-upload"
+                              name="logo-upload"
+                              type="file"
+                              accept="image/*"
+                              className="sr-only"
+                              onChange={handleLogoUpload}
+                            />
+                          </div>
+                          <p className="text-xs text-gray-500">PNG, JPG, GIF up to 10MB</p>
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label htmlFor="companyName" className="block text-sm font-medium text-gray-700">
                   Company Name *
@@ -405,7 +506,7 @@ export function Settings() {
                   Website Address
                 </label>
                 <input
-                  type="url"
+                  type="text"
                   id="website"
                   value={companySettings.website}
                   onChange={(e) => setCompanySettings({
@@ -413,7 +514,6 @@ export function Settings() {
                     website: e.target.value
                   })}
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                  placeholder="https://"
                 />
               </div>
 
@@ -668,10 +768,18 @@ export function Settings() {
                 <input
                   type="text"
                   value={staffForm.employeeNumber}
-                  onChange={(e) => setStaffForm({ ...staffForm, employeeNumber: e.target.value })}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
+                  onChange={(e) => handleEmployeeNumberChange(e.target.value)}
+                  className={clsx(
+                    "mt-1 block w-full rounded-md shadow-sm focus:ring-indigo-500 sm:text-sm",
+                    employeeNumberError
+                      ? "border-red-300 focus:border-red-500"
+                      : "border-gray-300 focus:border-indigo-500"
+                  )}
                   required
                 />
+                {employeeNumberError && (
+                  <p className="mt-1 text-sm text-red-600">{employeeNumberError}</p>
+                )}
               </div>
 
               <div>

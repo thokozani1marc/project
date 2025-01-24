@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { X } from 'lucide-react';
+import { X, Upload } from 'lucide-react';
 import { getStorageItem, setStorageItem } from '../utils/storage';
 import { clsx } from 'clsx';
 import { formatPrice } from '../utils/formatPrice';
@@ -27,6 +27,7 @@ export function Customers() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
+  const [importError, setImportError] = useState('');
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -137,17 +138,87 @@ export function Customers() {
     }
   };
 
+  const handleFileImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const rows = text.split('\n');
+      const headers = rows[0].split(',').map(h => h.trim().toLowerCase());
+      
+      const requiredFields = ['name'];
+      const missingFields = requiredFields.filter(field => !headers.includes(field));
+      
+      if (missingFields.length > 0) {
+        setImportError(`Missing required fields: ${missingFields.join(', ')}`);
+        return;
+      }
+
+      const newCustomers = rows.slice(1)
+        .filter(row => row.trim())
+        .map(row => {
+          const values = row.split(',').map(v => v.trim());
+          const customer: any = {
+            id: Math.random().toString(36).substr(2, 9),
+            orders: 0
+          };
+
+          headers.forEach((header, index) => {
+            customer[header] = values[index] || '';
+          });
+
+          return customer as Customer;
+        });
+
+      setCustomers(prev => {
+        const updated = [...prev, ...newCustomers];
+        setStorageItem('customers', updated);
+        return updated;
+      });
+
+      setImportError('');
+      e.target.value = '';
+    } catch (error) {
+      setImportError('Error processing file. Please check the format.');
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-semibold text-gray-900">Customers</h1>
-        <button
-          onClick={() => openModal()}
-          className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-        >
-          Add Customer
-        </button>
+        <div className="flex space-x-4">
+          <div className="relative">
+            <input
+              type="file"
+              accept=".csv,.xlsx,.xls"
+              onChange={handleFileImport}
+              className="sr-only"
+              id="file-import"
+            />
+            <label
+              htmlFor="file-import"
+              className="inline-flex items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 cursor-pointer"
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              Import Customers
+            </label>
+          </div>
+          <button
+            onClick={() => openModal()}
+            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+          >
+            Add Customer
+          </button>
+        </div>
       </div>
+
+      {importError && (
+        <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded relative">
+          {importError}
+        </div>
+      )}
 
       <div className="bg-white shadow-md rounded-lg overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
@@ -253,7 +324,6 @@ export function Customers() {
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                  required
                 />
               </div>
               <div>
@@ -261,12 +331,11 @@ export function Customers() {
                   Email
                 </label>
                 <input
-                  type="email"
+                  type="text"
                   id="email"
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                  required
                 />
               </div>
               <div>
@@ -279,20 +348,18 @@ export function Customers() {
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                  required
                 />
               </div>
               <div>
                 <label htmlFor="address" className="block text-sm font-medium text-gray-700">
                   Address
                 </label>
-                <input
-                  type="text"
+                <textarea
                   id="address"
                   value={formData.address}
                   onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                  rows={3}
                   className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                  required
                 />
               </div>
               <div className="flex justify-end space-x-3">

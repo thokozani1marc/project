@@ -92,6 +92,10 @@ export function Orders() {
   const [showColorPicker, setShowColorPicker] = useState<string | null>(null);
   const [selectedBrands, setSelectedBrands] = useState<{ [key: string]: string }>({});
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [showVoidModal, setShowVoidModal] = useState(false);
+  const [voidReason, setVoidReason] = useState('');
+  const [voidError, setVoidError] = useState('');
+  const [orderToVoid, setOrderToVoid] = useState<Order | null>(null);
 
   useEffect(() => {
     const savedOrders = getStorageItem<Order[]>('orders', []);
@@ -338,6 +342,41 @@ export function Orders() {
     return services.filter(service => service.categoryId === selectedCategory);
   }, [services, selectedCategory]);
 
+  const handleVoidOrder = (order: Order) => {
+    setOrderToVoid(order);
+    setShowVoidModal(true);
+    setVoidReason('');
+    setVoidError('');
+  };
+
+  const canVoidOrder = (order: Order) => {
+    if (order.status === 'completed' && (order.paymentMethod === 'cash' || order.paymentMethod === 'card')) {
+      return false;
+    }
+    return true;
+  };
+
+  const confirmVoidOrder = () => {
+    if (!voidReason.trim()) {
+      setVoidError('Please enter a reason for voiding the order');
+      return;
+    }
+
+    if (orderToVoid) {
+      const updatedOrders = orders.map(o => 
+        o.id === orderToVoid.id 
+          ? { ...o, status: 'voided', voidReason: voidReason, voidedAt: new Date() }
+          : o
+      );
+      setOrders(updatedOrders);
+      setStorageItem('orders', updatedOrders);
+      setShowVoidModal(false);
+      setOrderToVoid(null);
+      setVoidReason('');
+      setVoidError('');
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -473,20 +512,19 @@ export function Orders() {
                   </button>
                   {user.role === 'admin' && (
                     <button
-                      onClick={() => {
-                        const reason = window.prompt('Please enter a reason for voiding this order:');
-                        if (reason) {
-                          const updatedOrders = orders.map(o => 
-                            o.id === order.id 
-                              ? { ...o, status: 'voided', voidReason: reason, voidedAt: new Date() }
-                              : o
-                          );
-                          setOrders(updatedOrders);
-                          setStorageItem('orders', updatedOrders);
-                        }
-                      }}
-                      className="text-red-600 hover:text-red-900"
-                      title="Void Order"
+                      onClick={() => handleVoidOrder(order)}
+                      className={clsx(
+                        "text-red-600",
+                        canVoidOrder(order) 
+                          ? "hover:text-red-900 cursor-pointer" 
+                          : "opacity-50 cursor-not-allowed"
+                      )}
+                      disabled={!canVoidOrder(order)}
+                      title={
+                        canVoidOrder(order)
+                          ? "Void Order"
+                          : "Cannot void completed orders with cash or card payment"
+                      }
                     >
                       <Ban className="h-5 w-5 inline-block" />
                     </button>
@@ -947,6 +985,73 @@ export function Orders() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+      {/* Void Order Modal */}
+      {showVoidModal && (
+        <div className="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity z-50">
+          <div className="fixed inset-0 z-50 w-screen overflow-y-auto">
+            <div className="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+              <div className="relative transform overflow-hidden rounded-lg bg-white text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg">
+                <div className="bg-white px-4 pb-4 pt-5 sm:p-6 sm:pb-4">
+                  <div className="sm:flex sm:items-start">
+                    <div className="mx-auto flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                      <Ban className="h-6 w-6 text-red-600" />
+                    </div>
+                    <div className="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left">
+                      <h3 className="text-base font-semibold leading-6 text-gray-900">
+                        Void Order #{orderToVoid?.id}
+                      </h3>
+                      <div className="mt-4">
+                        <label htmlFor="void-reason" className="block text-sm font-medium text-gray-700">
+                          Reason for voiding order
+                        </label>
+                        <div className="mt-2">
+                          <textarea
+                            id="void-reason"
+                            rows={3}
+                            className={`block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm ${
+                              voidError ? 'border-red-300' : ''
+                            }`}
+                            value={voidReason}
+                            onChange={(e) => {
+                              setVoidReason(e.target.value);
+                              if (voidError) setVoidError('');
+                            }}
+                            placeholder="Enter the reason for voiding this order..."
+                          />
+                          {voidError && (
+                            <p className="mt-2 text-sm text-red-600">{voidError}</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6">
+                  <button
+                    type="button"
+                    onClick={confirmVoidOrder}
+                    className="inline-flex w-full justify-center rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500 sm:ml-3 sm:w-auto"
+                  >
+                    Void Order
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowVoidModal(false);
+                      setOrderToVoid(null);
+                      setVoidReason('');
+                      setVoidError('');
+                    }}
+                    className="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}

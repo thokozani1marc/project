@@ -30,8 +30,7 @@ export function ClockInManager({ onClose }: { onClose: () => void }) {
 
   const filteredStaff = staffMembers.filter(staff => 
     `${staff.firstName} ${staff.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    staff.phone.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    staff.employeeNumber.toLowerCase().includes(searchTerm.toLowerCase())
+    staff.phone.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleClockAction = async (staff: StaffMember, isClockIn: boolean) => {
@@ -110,7 +109,7 @@ export function ClockInManager({ onClose }: { onClose: () => void }) {
                           {staff.firstName} {staff.lastName}
                         </h3>
                         <p className="text-sm text-gray-500">
-                          {staff.employeeNumber} • {staff.status.charAt(0).toUpperCase() + staff.status.slice(1)}
+                          {staff.status.charAt(0).toUpperCase() + staff.status.slice(1)}
                         </p>
                       </div>
                       <Clock className="h-5 w-5 text-gray-400" />
@@ -127,7 +126,7 @@ export function ClockInManager({ onClose }: { onClose: () => void }) {
                 {selectedStaff.firstName} {selectedStaff.lastName}
               </h3>
               <p className="text-sm text-gray-500">
-                {selectedStaff.employeeNumber} • {selectedStaff.status.charAt(0).toUpperCase() + selectedStaff.status.slice(1)}
+                {selectedStaff.status.charAt(0).toUpperCase() + selectedStaff.status.slice(1)}
               </p>
             </div>
 
