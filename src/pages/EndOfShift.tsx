@@ -41,7 +41,8 @@ export function EndOfShift() {
     const today = new Date();
     const todayOrders = orders.filter(order => {
       const orderDate = new Date(order.date);
-      return format(orderDate, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd');
+      return format(orderDate, 'yyyy-MM-dd') === format(today, 'yyyy-MM-dd') && 
+             order.status !== 'voided';
     });
 
     // Calculate totals from orders

@@ -63,7 +63,8 @@ export function Dashboard() {
   useEffect(() => {
     const savedOrders = getStorageItem<Order[]>('orders', []);
     const savedServices = getStorageItem<Service[]>('services', []);
-    setOrders(savedOrders);
+    const activeOrders = savedOrders.filter(order => order.status !== 'voided');
+    setOrders(activeOrders);
     setServices(savedServices);
   }, []);
 

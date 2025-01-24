@@ -38,6 +38,11 @@ interface Order {
   salesperson: string;
 }
 
+interface VoidOrder extends Order {
+  voidReason?: string;
+  voidedAt?: Date;
+}
+
 interface Service {
   id: string;
   name: string;
@@ -294,6 +299,137 @@ export function generateReceipt(order: Order, services: Service[]) {
     doc.text(line, marginLeft + 1, footerLineY, { align: 'left' });
     footerLineY += 2.5; // Reduced line spacing for compact footer
   });
+
+  return doc;
+}
+
+export function generateVoidReceipt(order: VoidOrder, services: Service[]) {
+  // Get company settings
+  const settings = getStorageItem<CompanySettings>('company_settings', {
+    companyName: 'Your Company',
+    storeName: 'Your Store',
+    phone: '',
+    email: '',
+    website: '',
+    address: '',
+    enableTax: true,
+    vatPercentage: '15'
+  });
+
+  // 80mm receipt width (in points, assuming 1 inch = 25.4mm)
+  const receiptWidth = (80 / 25.4) * 72; // Convert mm to points
+  const marginLeft = 10;
+  const contentWidth = receiptWidth - (marginLeft * 2);
+
+  const doc = new jsPDF({
+    unit: 'pt',
+    format: [receiptWidth, 792], // Use receipt width with standard US letter height
+  });
+
+  // Header
+  doc.setFontSize(12);
+  doc.text('VOID ORDER RECEIPT', receiptWidth / 2, 15, { align: 'center' });
+  
+  // Company Info
+  doc.setFontSize(10);
+  doc.text(settings.companyName, receiptWidth / 2, 25, { align: 'center' });
+  doc.setFontSize(8);
+  if (settings.address) {
+    const addressLines = doc.splitTextToSize(settings.address, contentWidth);
+    doc.text(addressLines, receiptWidth / 2, 35, { align: 'center' });
+  }
+  if (settings.phone) doc.text(`Tel: ${settings.phone}`, receiptWidth / 2, 45, { align: 'center' });
+  if (settings.email) doc.text(`Email: ${settings.email}`, receiptWidth / 2, 52, { align: 'center' });
+
+  // Order Details
+  doc.setFontSize(8);
+  let yPos = 65;
+  doc.text(`Order ID: ${order.id}`, marginLeft, yPos);
+  yPos += 10;
+  doc.text(`Customer: ${order.customer}`, marginLeft, yPos);
+  yPos += 10;
+  doc.text(`Date: ${format(new Date(order.date), 'MMM d, yyyy HH:mm')}`, marginLeft, yPos);
+  yPos += 10;
+  doc.text(`Void Date: ${order.voidedAt ? format(new Date(order.voidedAt), 'MMM d, yyyy HH:mm') : '-'}`, marginLeft, yPos);
+  yPos += 10;
+  doc.text(`Salesperson: ${order.salesperson || 'Unknown'}`, marginLeft, yPos);
+  yPos += 15;
+
+  // Void Reason (highlighted)
+  doc.setFillColor(255, 240, 240);
+  doc.rect(marginLeft, yPos, contentWidth, 20, 'F');
+  doc.setTextColor(220, 0, 0);
+  doc.text('Void Reason:', marginLeft + 2, yPos + 7);
+  const reasonLines = doc.splitTextToSize(order.voidReason || 'No reason provided', contentWidth - 4);
+  doc.text(reasonLines, marginLeft + 2, yPos + 15);
+  doc.setTextColor(0, 0, 0);
+  yPos += 30;
+
+  // Items Table
+  const tableData = order.items.map(item => {
+    const service = services.find(s => s.id === item.serviceId);
+    return [
+      service?.name || 'Unknown Service',
+      item.quantity.toString(),
+      formatPrice(item.price),
+      formatPrice(item.subtotal)
+    ];
+  });
+
+  autoTable(doc, {
+    startY: yPos,
+    head: [['Service', 'Qty', 'Price', 'Total']],
+    body: tableData,
+    theme: 'plain',
+    styles: {
+      fontSize: 8,
+      cellPadding: 2,
+    },
+    headStyles: {
+      fillColor: [200, 200, 200],
+      textColor: [0, 0, 0],
+      fontStyle: 'bold',
+    },
+    columnStyles: {
+      0: { cellWidth: contentWidth * 0.4 },
+      1: { cellWidth: contentWidth * 0.15, halign: 'center' },
+      2: { cellWidth: contentWidth * 0.2, halign: 'right' },
+      3: { cellWidth: contentWidth * 0.25, halign: 'right' }
+    },
+    margin: { left: marginLeft },
+  });
+
+  // Totals
+  const finalY = (doc as any).lastAutoTable.finalY + 5;
+  yPos = finalY;
+  
+  // Add separator line
+  doc.setDrawColor(200, 200, 200);
+  doc.line(marginLeft, yPos, marginLeft + contentWidth, yPos);
+  yPos += 10;
+
+  // Right-aligned totals
+  const totalsX = marginLeft + contentWidth;
+  doc.text('Subtotal:', totalsX - 60, yPos);
+  doc.text(formatPrice(order.total - order.tax), totalsX, yPos, { align: 'right' });
+  yPos += 10;
+  
+  if (settings.enableTax) {
+    doc.text(`VAT (${settings.vatPercentage}%):`, totalsX - 70, yPos);
+    doc.text(formatPrice(order.tax), totalsX, yPos, { align: 'right' });
+    yPos += 10;
+  }
+  
+  doc.setFontSize(10);
+  doc.text('Total:', totalsX - 60, yPos);
+  doc.text(formatPrice(order.total), totalsX, yPos, { align: 'right' });
+  yPos += 20;
+
+  // Footer
+  doc.setFontSize(8);
+  doc.text('THIS IS A VOID ORDER RECEIPT', receiptWidth / 2, yPos, { align: 'center' });
+  yPos += 8;
+  doc.text('This order has been cancelled and is no longer valid', receiptWidth / 2, yPos, { align: 'center' });
 
   return doc;
 }

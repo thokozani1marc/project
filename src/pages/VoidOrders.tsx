@@ -1,28 +1,56 @@
-import React, { useState, useEffect } from 'react';
+import type { FC } from 'react';
+import { useState, useEffect } from 'react';
 import { format } from 'date-fns';
-import { Search, Ban } from 'lucide-react';
+import { Search, Ban, Printer } from 'lucide-react';
 import { getStorageItem } from '../utils/storage';
+import { generateVoidReceipt } from '../utils/receipt';
 
 interface Order {
   id: string;
   customer: string;
   status: string;
   total: number;
+  tax: number;
   date: Date;
+  paymentStatus: string;
+  paymentMethod: 'cash' | 'card' | 'pay_later';
+  collectionDate: string;
+  notes: string;
+  items: OrderItem[];
+  salesperson: string;
   voidReason?: string;
   voidedAt?: Date;
 }
 
+interface OrderItem {
+  serviceId: string;
+  quantity: number;
+  price: number;
+  subtotal: number;
+  colors?: string[];
+  brandId?: string;
+}
+
+interface Service {
+  id: string;
+  name: string;
+  price: number;
+  description: string;
+}
+
 const formatPrice = (amount: number) => `R${amount.toFixed(2)}`;
 
-export function VoidOrders() {
+export const VoidOrders: FC = () => {
   const [orders, setOrders] = useState<Order[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     const savedOrders = getStorageItem<Order[]>('orders', []);
+    const savedServices = getStorageItem<Service[]>('services', []);
     const voidedOrders = savedOrders.filter(order => order.status === 'voided');
     setOrders(voidedOrders);
+    setServices(savedServices);
   }, []);
 
   const filteredOrders = orders.filter(order => 
@@ -66,6 +94,9 @@ export function VoidOrders() {
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Total
               </th>
+              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Actions
+              </th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
@@ -85,6 +116,18 @@ export function VoidOrders() {
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">
                   {formatPrice(order.total)}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                  <button
+                    onClick={() => {
+                      const doc = generateVoidReceipt(order, services);
+                      doc.save(`void-order-${order.id}.pdf`);
+                    }}
+                    className="text-gray-600 hover:text-gray-900"
+                    title="Print Void Receipt"
+                  >
+                    <Printer className="h-5 w-5 inline-block" />
+                  </button>
                 </td>
               </tr>
             ))}

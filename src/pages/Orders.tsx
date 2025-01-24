@@ -404,136 +404,140 @@ export function Orders() {
         </div>
       )}
 
-      <div className="bg-white shadow-md rounded-lg overflow-hidden">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Order ID
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Customer
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Salesperson
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Status
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Total
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Payment Method
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Collection Date
-              </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {currentOrders.filter(order => order.status !== 'voided').map((order) => (
-              <tr key={order.id}>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                  {order.id}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {order.customer}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {order.salesperson || 'Unknown'}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <select
-                    value={order.status}
-                    onChange={(e) => handleStatusChange(order.id, e.target.value)}
-                    disabled={order.status === 'completed' && (order.paymentMethod === 'card' || order.paymentMethod === 'cash')}
-                    className={clsx(
-                      'text-sm font-medium rounded-full px-3 py-1 border-2',
-                      order.status === 'pending' ? 'bg-yellow-50 text-yellow-800' :
-                      order.status === 'processing' ? 'bg-blue-50 text-blue-800' :
-                      order.status === 'ready' ? 'bg-green-50 text-green-800' :
-                      order.status === 'completed' ? 'bg-gray-50 text-gray-800' :
-                      'bg-red-50 text-red-800',
-                      (order.status === 'completed' && (order.paymentMethod === 'card' || order.paymentMethod === 'cash')) && 'opacity-50 cursor-not-allowed'
-                    )}
-                  >
-                    {ORDER_STATUSES.map(status => (
-                      <option key={status} value={status}>
-                        {status.charAt(0).toUpperCase() + status.slice(1)}
-                      </option>
-                    ))}
-                  </select>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {formatPrice(order.total)}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <select
-                    value={order.paymentMethod}
-                    onChange={(e) => handlePaymentMethodUpdate(order.id, e.target.value as 'cash' | 'card' | 'pay_later')}
-                    disabled={order.status === 'completed' && (order.paymentMethod === 'card' || order.paymentMethod === 'cash')}
-                    className={clsx(
-                      'px-2 py-1 text-xs font-medium rounded-full border-0',
-                      order.paymentMethod === 'cash' ? 'bg-green-100 text-green-800' :
-                      order.paymentMethod === 'card' ? 'bg-blue-100 text-blue-800' :
-                      'bg-yellow-100 text-yellow-800',
-                      (order.status === 'completed' && (order.paymentMethod === 'card' || order.paymentMethod === 'cash')) && 'opacity-50 cursor-not-allowed'
-                    )}
-                  >
-                    <option value="cash">Cash</option>
-                    <option value="card">Card</option>
-                    <option value="pay_later">Pay Later</option>
-                  </select>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {format(new Date(order.collectionDate), 'MMM d, yyyy HH:mm')}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                  <button
-                    onClick={() => handlePrint(order)}
-                    className="text-gray-600 hover:text-gray-900 mr-4"
-                    title="Print Receipt"
-                  >
-                    <Printer className="h-5 w-5 inline-block" />
-                  </button>
-                  <button
-                    onClick={() => openModal(order)}
-                    disabled={order.status === 'completed' && (order.paymentMethod === 'card' || order.paymentMethod === 'cash')}
-                    className={clsx(
-                      "text-indigo-600 hover:text-indigo-900 mr-4",
-                      (order.status === 'completed' && (order.paymentMethod === 'card' || order.paymentMethod === 'cash')) && 'opacity-50 cursor-not-allowed'
-                    )}
-                  >
-                    Edit
-                  </button>
-                  {user.role === 'admin' && (
-                    <button
-                      onClick={() => handleVoidOrder(order)}
-                      className={clsx(
-                        "text-red-600",
-                        canVoidOrder(order) 
-                          ? "hover:text-red-900 cursor-pointer" 
-                          : "opacity-50 cursor-not-allowed"
+      <div className="bg-white shadow-md rounded-lg">
+        <div className="overflow-x-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+          <div className="inline-block min-w-full align-middle">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Order ID
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Customer
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Salesperson
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Total
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Payment Method
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Collection Date
+                  </th>
+                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {currentOrders.filter(order => order.status !== 'voided').map((order) => (
+                  <tr key={order.id}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {order.id}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {order.customer}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {order.salesperson || 'Unknown'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <select
+                        value={order.status}
+                        onChange={(e) => handleStatusChange(order.id, e.target.value)}
+                        disabled={order.status === 'completed' && (order.paymentMethod === 'card' || order.paymentMethod === 'cash')}
+                        className={clsx(
+                          'text-sm font-medium rounded-full px-3 py-1 border-2',
+                          order.status === 'pending' ? 'bg-yellow-50 text-yellow-800' :
+                          order.status === 'processing' ? 'bg-blue-50 text-blue-800' :
+                          order.status === 'ready' ? 'bg-green-50 text-green-800' :
+                          order.status === 'completed' ? 'bg-gray-50 text-gray-800' :
+                          'bg-red-50 text-red-800',
+                          (order.status === 'completed' && (order.paymentMethod === 'card' || order.paymentMethod === 'cash')) && 'opacity-50 cursor-not-allowed'
+                        )}
+                      >
+                        {ORDER_STATUSES.map(status => (
+                          <option key={status} value={status}>
+                            {status.charAt(0).toUpperCase() + status.slice(1)}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {formatPrice(order.total)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <select
+                        value={order.paymentMethod}
+                        onChange={(e) => handlePaymentMethodUpdate(order.id, e.target.value as 'cash' | 'card' | 'pay_later')}
+                        disabled={order.status === 'completed' && (order.paymentMethod === 'card' || order.paymentMethod === 'cash')}
+                        className={clsx(
+                          'px-2 py-1 text-xs font-medium rounded-full border-0',
+                          order.paymentMethod === 'cash' ? 'bg-green-100 text-green-800' :
+                          order.paymentMethod === 'card' ? 'bg-blue-100 text-blue-800' :
+                          'bg-yellow-100 text-yellow-800',
+                          (order.status === 'completed' && (order.paymentMethod === 'card' || order.paymentMethod === 'cash')) && 'opacity-50 cursor-not-allowed'
+                        )}
+                      >
+                        <option value="cash">Cash</option>
+                        <option value="card">Card</option>
+                        <option value="pay_later">Pay Later</option>
+                      </select>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {format(new Date(order.collectionDate), 'MMM d, yyyy HH:mm')}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <button
+                        onClick={() => handlePrint(order)}
+                        className="text-gray-600 hover:text-gray-900 mr-4"
+                        title="Print Receipt"
+                      >
+                        <Printer className="h-5 w-5 inline-block" />
+                      </button>
+                      <button
+                        onClick={() => openModal(order)}
+                        disabled={order.status === 'completed' && (order.paymentMethod === 'card' || order.paymentMethod === 'cash')}
+                        className={clsx(
+                          "text-indigo-600 hover:text-indigo-900 mr-4",
+                          (order.status === 'completed' && (order.paymentMethod === 'card' || order.paymentMethod === 'cash')) && 'opacity-50 cursor-not-allowed'
+                        )}
+                      >
+                        Edit
+                      </button>
+                      {user.role === 'admin' && (
+                        <button
+                          onClick={() => handleVoidOrder(order)}
+                          className={clsx(
+                            "text-red-600",
+                            canVoidOrder(order) 
+                              ? "hover:text-red-900 cursor-pointer" 
+                              : "opacity-50 cursor-not-allowed"
+                          )}
+                          disabled={!canVoidOrder(order)}
+                          title={
+                            canVoidOrder(order)
+                              ? "Void Order"
+                              : "Cannot void completed orders with cash or card payment"
+                          }
+                        >
+                          <Ban className="h-5 w-5 inline-block" />
+                        </button>
                       )}
-                      disabled={!canVoidOrder(order)}
-                      title={
-                        canVoidOrder(order)
-                          ? "Void Order"
-                          : "Cannot void completed orders with cash or card payment"
-                      }
-                    >
-                      <Ban className="h-5 w-5 inline-block" />
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
       {/* Pagination */}
