@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
-import { ShoppingBag, Users, TrendingUp, DollarSign } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { ShoppingBag, Users, DollarSign } from 'lucide-react';
 import { format, subDays, startOfToday, endOfToday, isWithinInterval } from 'date-fns';
 import { Bar, Pie } from 'react-chartjs-2';
 import { getStorageItem } from '../utils/storage';
+import { servicesManagementService, Service } from '../services/ServicesManagementService';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -42,14 +43,6 @@ interface Order {
   }>;
 }
 
-interface Service {
-  id: string;
-  name: string;
-  price: number;
-  description: string;
-  categoryId: string;
-}
-
 const formatPrice = (amount: number) => `R${amount.toFixed(2)}`;
 
 export function Dashboard() {
@@ -62,7 +55,7 @@ export function Dashboard() {
   // Load data from localStorage
   useEffect(() => {
     const savedOrders = getStorageItem<Order[]>('orders', []);
-    const savedServices = getStorageItem<Service[]>('services', []);
+    const savedServices = servicesManagementService.getAllServices();
     const activeOrders = savedOrders.filter(order => order.status !== 'voided');
     setOrders(activeOrders);
     setServices(savedServices);
@@ -70,7 +63,6 @@ export function Dashboard() {
 
   // Calculate today's orders
   useEffect(() => {
-    const today = new Date();
     const todaysOrders = orders.filter(order => 
       isWithinInterval(new Date(order.date), {
         start: startOfToday(),

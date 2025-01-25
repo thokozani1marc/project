@@ -11,6 +11,7 @@ import { Services } from './pages/Services';
 import { Settings } from './pages/Settings';
 import { EndOfShift } from './pages/EndOfShift';
 import { Login } from './pages/Login';
+import { Inventory } from './pages/Inventory';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 function ProtectedRoute({ 
@@ -59,6 +60,7 @@ function App() {
             <Route path="settings" element={<Settings />} />
             <Route path="reports" element={<Reports />} />
             <Route path="end-of-shift" element={<EndOfShift />} />
+            <Route path="inventory" element={<Inventory />} />
           </Route>
         </Routes>
       </Router>

@@ -3,6 +3,7 @@ import { getStorageItem } from '../utils/storage';
 import { formatPrice } from '../utils/format';
 import { format } from 'date-fns';
 import { CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
+import { servicesManagementService, Service, Brand } from '../services/ServicesManagementService';
 import clsx from 'clsx';
 
 interface Order {
@@ -26,20 +27,6 @@ interface Order {
   }>;
 }
 
-interface Service {
-  id: string;
-  name: string;
-  price: number;
-  description: string;
-  categoryId: string;
-}
-
-interface Brand {
-  id: string;
-  name: string;
-  description?: string;
-}
-
 export function Collection() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [services, setServices] = useState<Service[]>([]);
@@ -51,11 +38,9 @@ export function Collection() {
 
   useEffect(() => {
     const savedOrders = getStorageItem<Order[]>('orders', []);
-    const savedServices = getStorageItem<Service[]>('services', []);
-    const savedBrands = getStorageItem<Brand[]>('brands', []);
     setOrders(savedOrders);
-    setServices(savedServices);
-    setBrands(savedBrands);
+    setServices(servicesManagementService.getAllServices());
+    setBrands(servicesManagementService.getAllBrands());
   }, []);
 
   // Filter orders based on search term and status
