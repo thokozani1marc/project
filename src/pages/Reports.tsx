@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, DollarSign, TrendingUp, Search, Clock, Users, Package } from 'lucide-react';
-import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isWithinInterval, getHours, getDay, differenceInDays } from 'date-fns';
+import { Calendar, DollarSign, TrendingUp, Search, Clock, Users } from 'lucide-react';
+import { format, startOfDay, endOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth, isWithinInterval, getHours, getDay } from 'date-fns';
 import { getStorageItem } from '../utils/storage';
 import { Bar, Pie } from 'react-chartjs-2';
 import type { ChartData, ChartOptions } from 'chart.js';
@@ -58,74 +58,9 @@ interface ActivityData {
   averageOrdersPerDay: number;
 }
 
-interface KeyInventoryItem {
-  id: string;
-  name: string;
-  currentStock: number;
-  reorderPoint: number;
-  costPrice: number;
-  sellingPrice: number;
-  specifications: {
-    type: string;
-  };
-}
-
-interface InventoryReportData {
-  totalStockValue: number;
-  totalPotentialRevenue: number;
-  averageMargin: number;
-  fastMoving: KeyPerformanceMetrics[];
-  slowMoving: KeyPerformanceMetrics[];
-  stockAlerts: {
-    lowStock: KeyInventoryItem[];
-    outOfStock: KeyInventoryItem[];
-  };
-  categoryBreakdown: {
-    [category: string]: {
-      quantity: number;
-      value: number;
-      sales: number;
-    };
-  };
-  totalOrders: number;
-  totalRevenue: number;
-  totalTax: number;
-  paymentMethods: {
-    cash: number;
-    card: number;
-    payLater: number;
-  };
-}
-
-interface KeyPerformanceMetrics {
-  keyId: string;
-  name: string;
-  currentStock: number;
-  totalSales: number;
-  salesVelocity: number;
-  daysOfStock: number;
-  costValue: number;
-  sellingValue: number;
-  profitMargin: number;
-  movementHistory: any[];
-  wastage: number;
-  category: string;
-}
-
-interface InventorySale {
-  id: string;
-  date: Date;
-  items: {
-    keyId: string;
-    quantity: number;
-  }[];
-  voidedAt?: Date;
-  paymentMethod: 'cash' | 'card' | 'pay_later';
-}
-
 type ReportType = 'daily' | 'weekly' | 'monthly' | 'custom';
 type PaymentMethodFilter = 'all' | 'cash' | 'card';
-type ReportView = 'sales' | 'time' | 'services' | 'activity' | 'inventory';
+type ReportView = 'sales' | 'time' | 'services' | 'activity';
 type ServiceSortBy = 'count' | 'revenue' | 'averagePrice';
 type SortOrder = 'asc' | 'desc';
 
@@ -155,152 +90,17 @@ export function Reports() {
   const [serviceSortBy, setServiceSortBy] = useState<ServiceSortBy>('count');
   const [sortOrder, setSortOrder] = useState<SortOrder>('desc');
   const [searchTerm, setSearchTerm] = useState('');
-  const [inventoryItems, setInventoryItems] = useState<KeyInventoryItem[]>([]);
-  const [inventorySales, setInventorySales] = useState<InventorySale[]>([]);
-  const [inventoryReport, setInventoryReport] = useState<InventoryReportData | null>(null);
 
-  // Load all required data
   useEffect(() => {
-    const orders = getStorageItem<Order[]>('orders', []);
-    const timeRecords = getStorageItem<TimeRecord[]>('timeRecords', []);
-    const services = getStorageItem<Service[]>('services', []);
-    const keyInventory = getStorageItem<KeyInventoryItem[]>('keyInventory', []);
-    const inventorySales = getStorageItem<InventorySale[]>('inventorySales', []);
-
-    setOrders(orders);
-    setTimeRecords(timeRecords);
-    setServices(services);
-    setInventoryItems(keyInventory);
-    setInventorySales(inventorySales);
-
-    console.log('Loaded data:', {
-      orders: orders.length,
-      timeRecords: timeRecords.length,
-      services: services.length,
-      keyInventory: keyInventory.length,
-      inventorySales: inventorySales.length
-    });
+    const savedOrders = getStorageItem<Order[]>('orders', []);
+    const savedTimeRecords = getStorageItem<TimeRecord[]>('time_records', []);
+    const savedServices = getStorageItem<Service[]>('services', []);
+    // Filter out voided orders
+    const activeOrders = savedOrders.filter(order => order.status !== 'voided');
+    setOrders(activeOrders);
+    setTimeRecords(savedTimeRecords);
+    setServices(savedServices);
   }, []);
-
-  // Update report when view or date range changes
-  useEffect(() => {
-    if (reportView === 'inventory' && inventoryItems.length > 0) {
-      const today = new Date();
-      let start = today;
-      let end = today;
-
-      switch (reportType) {
-        case 'daily':
-          start = startOfDay(today);
-          end = endOfDay(today);
-          break;
-        case 'weekly':
-          start = startOfWeek(today);
-          end = endOfWeek(today);
-          break;
-        case 'monthly':
-          start = startOfMonth(today);
-          end = endOfMonth(today);
-          break;
-        case 'custom':
-          start = startOfDay(new Date(startDate));
-          end = endOfDay(new Date(endDate));
-          break;
-      }
-
-      // Get orders for the date range
-      const filteredOrders = orders.filter(order => {
-        const orderDate = new Date(order.date);
-        return order.status !== 'voided' && isWithinInterval(orderDate, { start, end });
-      });
-
-      // Calculate metrics
-      const totalRevenue = filteredOrders.reduce((sum, order) => sum + order.total, 0);
-      const totalTax = filteredOrders.reduce((sum, order) => sum + order.tax, 0);
-      const paymentMethods = {
-        cash: filteredOrders.filter(o => o.paymentMethod === 'cash').length,
-        card: filteredOrders.filter(o => o.paymentMethod === 'card').length,
-        payLater: filteredOrders.filter(o => o.paymentMethod === 'pay_later').length
-      };
-
-      // Get inventory sales for the date range
-      const sales = inventorySales.filter(sale => {
-        const saleDate = new Date(sale.date);
-        return !sale.voidedAt && isWithinInterval(saleDate, { start, end });
-      });
-
-      const metrics = inventoryItems.map(item => {
-        const itemSales = sales.flatMap(sale => 
-          sale.items.filter(i => i.keyId === item.id)
-        );
-        
-        const totalSales = itemSales.reduce((sum, sale) => sum + sale.quantity, 0);
-        const salesVelocity = totalSales / Math.max(1, differenceInDays(end, start));
-        const daysOfStock = salesVelocity > 0 ? item.currentStock / salesVelocity : 999;
-        
-        const costValue = item.costPrice * item.currentStock;
-        const sellingValue = item.sellingPrice * item.currentStock;
-        const profitMargin = ((item.sellingPrice - item.costPrice) / item.costPrice) * 100;
-
-        return {
-          keyId: item.id,
-          name: item.name,
-          currentStock: item.currentStock,
-          totalSales,
-          salesVelocity,
-          daysOfStock,
-          costValue,
-          sellingValue,
-          profitMargin,
-          movementHistory: [],
-          wastage: 0,
-          category: item.specifications.type
-        };
-      });
-
-      const FAST_MOVING_THRESHOLD = 0.5;
-      const fastMoving = metrics.filter(m => m.salesVelocity >= FAST_MOVING_THRESHOLD);
-      const slowMoving = metrics.filter(m => m.salesVelocity < FAST_MOVING_THRESHOLD);
-
-      const categoryBreakdown = metrics.reduce((acc, metric) => {
-        const category = metric.category;
-        if (!acc[category]) {
-          acc[category] = { quantity: 0, value: 0, sales: 0 };
-        }
-        acc[category].quantity += metric.currentStock;
-        acc[category].value += metric.costValue;
-        acc[category].sales += metric.totalSales;
-        return acc;
-      }, {} as InventoryReportData['categoryBreakdown']);
-
-      const reportData: InventoryReportData = {
-        totalStockValue: metrics.reduce((sum, m) => sum + m.costValue, 0),
-        totalPotentialRevenue: metrics.reduce((sum, m) => sum + m.sellingValue, 0),
-        averageMargin: metrics.reduce((sum, m) => sum + m.profitMargin, 0) / metrics.length,
-        fastMoving,
-        slowMoving,
-        stockAlerts: {
-          lowStock: inventoryItems.filter(item => item.currentStock <= item.reorderPoint && item.currentStock > 0),
-          outOfStock: inventoryItems.filter(item => item.currentStock === 0)
-        },
-        categoryBreakdown,
-        totalOrders: filteredOrders.length,
-        totalRevenue,
-        totalTax,
-        paymentMethods
-      };
-
-      console.log('Generated report:', {
-        dateRange: { start, end },
-        orders: filteredOrders.length,
-        sales: sales.length,
-        metrics: metrics.length,
-        reportData
-      });
-
-      setInventoryReport(reportData);
-    }
-  }, [reportView, reportType, startDate, endDate, inventoryItems, orders, inventorySales]);
 
   const filterByDateRange = (start: Date, end: Date) => {
     const filteredOrders = orders.filter(order => {
@@ -322,11 +122,6 @@ export function Reports() {
   };
 
   const calculateServiceAnalytics = (filteredOrders: Order[]) => {
-    if (!Array.isArray(services) || services.length === 0) {
-      setServiceAnalytics([]);
-      return;
-    }
-
     const analytics = new Map<string, ServiceAnalytics>();
 
     // Initialize analytics with all services
@@ -450,219 +245,101 @@ export function Reports() {
   const totals = calculateTotals();
   const timeStats = calculateTimeStats();
 
-  // Chart data types
-  const chartData: ChartData<'bar'> = {
-    labels: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
+  // Chart data for services
+  const serviceChartData: ChartData<'bar' | 'pie'> = {
+    labels: serviceAnalytics.slice(0, 10).map(s => s.serviceName),
     datasets: [
       {
-        label: 'Orders',
-        data: activityData.daily,
-        backgroundColor: 'rgba(99, 102, 241, 0.5)',
-        borderColor: 'rgb(99, 102, 241)',
-        borderWidth: 1,
-      },
-    ],
-  };
-
-  const hourlyChartData: ChartData<'bar'> = {
-    labels: Array.from({ length: 24 }, (_, i) => `${i}:00`),
-    datasets: [
-      {
-        label: 'Orders',
-        data: activityData.hourly,
-        backgroundColor: 'rgba(99, 102, 241, 0.5)',
-        borderColor: 'rgb(99, 102, 241)',
-        borderWidth: 1,
-      },
-    ],
-  };
-
-  const paymentMethodChartData: ChartData<'pie'> = {
-    labels: ['Cash', 'Card', 'Pay Later'],
-    datasets: [
-      {
-        data: [
-          selectedReport.filter(order => order.paymentMethod === 'cash').length,
-          selectedReport.filter(order => order.paymentMethod === 'card').length,
-          selectedReport.filter(order => order.paymentMethod === 'pay_later').length,
-        ],
+        label: serviceSortBy === 'count' ? 'Number of Sales' : 
+               serviceSortBy === 'revenue' ? 'Total Revenue' : 'Average Price',
+        data: serviceAnalytics.slice(0, 10).map(s => s[serviceSortBy]),
         backgroundColor: [
-          'rgba(52, 211, 153, 0.5)',
-          'rgba(99, 102, 241, 0.5)',
-          'rgba(251, 191, 36, 0.5)',
+          'rgba(255, 99, 132, 0.5)',
+          'rgba(54, 162, 235, 0.5)',
+          'rgba(255, 206, 86, 0.5)',
+          'rgba(75, 192, 192, 0.5)',
+          'rgba(153, 102, 255, 0.5)',
+          'rgba(255, 159, 64, 0.5)',
+          'rgba(201, 203, 207, 0.5)',
+          'rgba(255, 99, 132, 0.5)',
+          'rgba(54, 162, 235, 0.5)',
+          'rgba(255, 206, 86, 0.5)'
         ],
         borderColor: [
-          'rgb(52, 211, 153)',
-          'rgb(99, 102, 241)',
-          'rgb(251, 191, 36)',
+          'rgba(255, 99, 132, 1)',
+          'rgba(54, 162, 235, 1)',
+          'rgba(255, 206, 86, 1)',
+          'rgba(75, 192, 192, 1)',
+          'rgba(153, 102, 255, 1)',
+          'rgba(255, 159, 64, 1)',
+          'rgba(201, 203, 207, 1)',
+          'rgba(255, 99, 132, 1)',
+          'rgba(54, 162, 235, 1)',
+          'rgba(255, 206, 86, 1)'
         ],
-        borderWidth: 1,
-      },
-    ],
+        borderWidth: 1
+      }
+    ]
   };
 
-  const chartOptions: ChartOptions<'bar'> = {
+  const chartOptions: ChartOptions<'bar' | 'pie'> = {
     responsive: true,
     plugins: {
       legend: {
         position: 'top' as const,
       },
+      title: {
+        display: true,
+        text: 'Service Analytics',
+      },
     },
   };
 
-  const pieChartOptions: ChartOptions<'pie'> = {
+  // Activity chart data
+  const hourlyActivityData: ChartData<'bar'> = {
+    labels: Array.from({ length: 24 }, (_, i) => `${i}:00`),
+    datasets: [{
+      label: 'Orders per Hour',
+      data: activityData.hourly,
+      backgroundColor: 'rgba(54, 162, 235, 0.5)',
+      borderColor: 'rgb(54, 162, 235)',
+      borderWidth: 1
+    }]
+  };
+
+  const dailyActivityData: ChartData<'bar'> = {
+    labels: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+    datasets: [{
+      label: 'Orders per Day',
+      data: activityData.daily,
+      backgroundColor: 'rgba(75, 192, 192, 0.5)',
+      borderColor: 'rgb(75, 192, 192)',
+      borderWidth: 1
+    }]
+  };
+
+  const activityChartOptions: ChartOptions<'bar'> = {
     responsive: true,
     plugins: {
       legend: {
         position: 'top' as const,
       },
+      tooltip: {
+        callbacks: {
+          label: function(context: any) {
+            return `${context.parsed.y} orders`;
+          }
+        }
+      }
     },
-  };
-
-  const renderInventoryReport = () => {
-    if (!inventoryReport) return null;
-
-    return (
-      <div className="space-y-6">
-        {/* Overview Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-white p-4 rounded-lg shadow">
-            <h3 className="text-sm font-medium text-gray-500">Total Revenue</h3>
-            <p className="text-2xl font-semibold">{formatPrice(inventoryReport.totalRevenue)}</p>
-          </div>
-          <div className="bg-white p-4 rounded-lg shadow">
-            <h3 className="text-sm font-medium text-gray-500">Total Orders</h3>
-            <p className="text-2xl font-semibold">{inventoryReport.totalOrders}</p>
-          </div>
-          <div className="bg-white p-4 rounded-lg shadow">
-            <h3 className="text-sm font-medium text-gray-500">Total Tax</h3>
-            <p className="text-2xl font-semibold">{formatPrice(inventoryReport.totalTax)}</p>
-          </div>
-          <div className="bg-white p-4 rounded-lg shadow">
-            <h3 className="text-sm font-medium text-gray-500">Average Margin</h3>
-            <p className="text-2xl font-semibold">{inventoryReport.averageMargin.toFixed(1)}%</p>
-          </div>
-        </div>
-
-        {/* Payment Methods */}
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-lg font-medium mb-4">Payment Methods</h3>
-          <div className="grid grid-cols-3 gap-4">
-            <div className="text-center">
-              <p className="text-2xl font-semibold">{inventoryReport.paymentMethods.cash}</p>
-              <p className="text-sm text-gray-500">Cash</p>
-            </div>
-            <div className="text-center">
-              <p className="text-2xl font-semibold">{inventoryReport.paymentMethods.card}</p>
-              <p className="text-sm text-gray-500">Card</p>
-            </div>
-            <div className="text-center">
-              <p className="text-2xl font-semibold">{inventoryReport.paymentMethods.payLater}</p>
-              <p className="text-sm text-gray-500">Pay Later</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Fast/Slow Moving Items */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-white p-6 rounded-lg shadow">
-            <h3 className="text-lg font-medium mb-4">Fast Moving Items</h3>
-            <div className="space-y-4">
-              {inventoryReport.fastMoving.map(item => (
-                <div key={item.keyId} className="flex justify-between items-center">
-                  <div>
-                    <p className="font-medium">{item.name}</p>
-                    <p className="text-sm text-gray-500">
-                      {item.salesVelocity.toFixed(1)} units/day
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-medium">{item.currentStock} in stock</p>
-                    <p className="text-sm text-gray-500">
-                      {item.daysOfStock.toFixed(1)} days remaining
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="bg-white p-6 rounded-lg shadow">
-            <h3 className="text-lg font-medium mb-4">Slow Moving Items</h3>
-            <div className="space-y-4">
-              {inventoryReport.slowMoving.map(item => (
-                <div key={item.keyId} className="flex justify-between items-center">
-                  <div>
-                    <p className="font-medium">{item.name}</p>
-                    <p className="text-sm text-gray-500">
-                      {item.salesVelocity.toFixed(1)} units/day
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-medium">{formatPrice(item.costValue)}</p>
-                    <p className="text-sm text-gray-500">
-                      {item.currentStock} units
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Category Breakdown */}
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-lg font-medium mb-4">Category Breakdown</h3>
-          <div className="space-y-4">
-            {Object.entries(inventoryReport.categoryBreakdown).map(([category, data]) => (
-              <div key={category} className="flex justify-between items-center">
-                <div>
-                  <p className="font-medium">{category}</p>
-                  <p className="text-sm text-gray-500">{data.quantity} units</p>
-                </div>
-                <div className="text-right">
-                  <p className="font-medium">{formatPrice(data.value)}</p>
-                  <p className="text-sm text-gray-500">{data.sales} sold</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Stock Alerts */}
-        <div className="bg-white p-6 rounded-lg shadow">
-          <h3 className="text-lg font-medium mb-4">Stock Alerts</h3>
-          <div className="space-y-6">
-            {inventoryReport.stockAlerts.outOfStock.length > 0 && (
-              <div>
-                <h4 className="text-md font-medium text-red-600 mb-2">Out of Stock</h4>
-                <div className="space-y-2">
-                  {inventoryReport.stockAlerts.outOfStock.map(item => (
-                    <div key={item.id} className="flex justify-between items-center">
-                      <p>{item.name}</p>
-                      <p className="text-red-600">0 units</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-            {inventoryReport.stockAlerts.lowStock.length > 0 && (
-              <div>
-                <h4 className="text-md font-medium text-yellow-600 mb-2">Low Stock</h4>
-                <div className="space-y-2">
-                  {inventoryReport.stockAlerts.lowStock.map(item => (
-                    <div key={item.id} className="flex justify-between items-center">
-                      <p>{item.name}</p>
-                      <p className="text-yellow-600">{item.currentStock} units</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
-    );
+    scales: {
+      y: {
+        beginAtZero: true,
+        ticks: {
+          stepSize: 1
+        }
+      }
+    }
   };
 
   return (
@@ -709,17 +386,6 @@ export function Reports() {
             }`}
           >
             Activity Analysis
-          </button>
-          <button
-            onClick={() => setReportView('inventory')}
-            className={`px-4 py-2 rounded-md flex items-center ${
-              reportView === 'inventory'
-                ? 'bg-indigo-600 text-white'
-                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-            }`}
-          >
-            <Package className="w-5 h-5 mr-2" />
-            Inventory Report
           </button>
         </div>
       </div>
@@ -974,14 +640,14 @@ export function Reports() {
             </div>
 
             {/* Service Charts */}
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <div className="grid grid-cols-2 gap-6">
               <div className="bg-white p-4 rounded-lg shadow">
                 <h3 className="text-lg font-medium mb-4">Top Services Chart</h3>
-                <Bar data={chartData} options={chartOptions} />
+                <Bar data={serviceChartData} options={chartOptions} />
               </div>
               <div className="bg-white p-4 rounded-lg shadow">
                 <h3 className="text-lg font-medium mb-4">Service Distribution</h3>
-                <Pie data={paymentMethodChartData} options={pieChartOptions} />
+                <Pie data={serviceChartData} options={chartOptions} />
               </div>
             </div>
 
@@ -1026,8 +692,6 @@ export function Reports() {
             </div>
           </div>
         </div>
-      ) : reportView === 'inventory' ? (
-        renderInventoryReport()
       ) : (
         <div className="space-y-6">
           <div className="bg-white shadow rounded-lg p-6">
@@ -1113,12 +777,12 @@ export function Reports() {
             {/* Activity Charts */}
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
               <div className="bg-white p-4 rounded-lg shadow">
-                <h3 className="text-lg font-medium mb-4">Daily Orders</h3>
-                <Bar data={chartData} options={chartOptions} />
+                <h3 className="text-lg font-medium mb-4">Hourly Activity</h3>
+                <Bar data={hourlyActivityData} options={activityChartOptions} />
               </div>
               <div className="bg-white p-4 rounded-lg shadow">
-                <h3 className="text-lg font-medium mb-4">Hourly Orders</h3>
-                <Bar data={hourlyChartData} options={chartOptions} />
+                <h3 className="text-lg font-medium mb-4">Daily Activity</h3>
+                <Bar data={dailyActivityData} options={activityChartOptions} />
               </div>
             </div>
 

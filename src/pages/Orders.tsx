@@ -6,9 +6,6 @@ import { getStorageItem, setStorageItem, getNextOrderNumber } from '../utils/sto
 import { useAuth } from '../contexts/AuthContext';
 import { generateReceipt } from '../utils/receipt';
 import { formatPrice } from '../utils/formatPrice';
-import { servicesManagementService, Service, Category, Brand } from '../services/ServicesManagementService';
-import { keyInventoryService } from '../services/KeyInventoryService';
-import { Link } from 'react-router-dom';
 
 interface Customer {
   id: string;
@@ -16,6 +13,27 @@ interface Customer {
   email: string;
   phone: string;
   orders: number;
+}
+
+interface Brand {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+interface Category {
+  id: string;
+  name: string;
+  description?: string;
+}
+
+interface Service {
+  id: string;
+  name: string;
+  price: number;
+  description: string;
+  categoryId: string;
+  brands?: string[];
 }
 
 interface OrderItem {
@@ -70,7 +88,7 @@ export function Orders() {
   const [customerSearch, setCustomerSearch] = useState('');
   const [filteredCustomers, setFilteredCustomers] = useState<Customer[]>([]);
   const [statusUpdateMessage, setStatusUpdateMessage] = useState('');
-  const [selectedColors, setSelectedColors] = useState<Record<string, string[]>>({});
+  const [selectedColors, setSelectedColors] = useState<{ [key: string]: string[] }>({});
   const [showColorPicker, setShowColorPicker] = useState<string | null>(null);
   const [selectedBrands, setSelectedBrands] = useState<{ [key: string]: string }>({});
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -78,16 +96,19 @@ export function Orders() {
   const [voidReason, setVoidReason] = useState('');
   const [voidError, setVoidError] = useState('');
   const [orderToVoid, setOrderToVoid] = useState<Order | null>(null);
-  const [cartReservations, setCartReservations] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const savedOrders = getStorageItem<Order[]>('orders', []);
+    const savedServices = getStorageItem<Service[]>('services', []);
+    const savedCategories = getStorageItem<Category[]>('categories', []);
     const savedCustomers = getStorageItem<Customer[]>('customers', []);
+    const savedBrands = getStorageItem<Brand[]>('brands', []);
+    
     setOrders(savedOrders);
+    setServices(savedServices);
+    setCategories(savedCategories);
     setCustomers(savedCustomers);
-    setServices(servicesManagementService.getAllServices());
-    setCategories(servicesManagementService.getAllCategories());
-    setBrands(servicesManagementService.getAllBrands());
+    setBrands(savedBrands);
   }, []);
 
   useEffect(() => {
@@ -153,11 +174,15 @@ export function Orders() {
 
   const handleColorToggle = (serviceId: string, color: string) => {
     setSelectedColors(prev => {
-      const current = prev[serviceId] || [];
-      const updated = current.includes(color)
-        ? current.filter(c => c !== color)
-        : [...current, color];
-      return { ...prev, [serviceId]: updated };
+      const currentColors = prev[serviceId] || [];
+      const newColors = currentColors.includes(color)
+        ? currentColors.filter(c => c !== color)
+        : [...currentColors, color];
+      
+      return {
+        ...prev,
+        [serviceId]: newColors
+      };
     });
   };
 
@@ -168,46 +193,22 @@ export function Orders() {
     }));
   };
 
-  const addOrderItem = (serviceId: string) => {
-    const service = services.find(s => s.id === serviceId);
-    if (!service) return;
-
-    // Check if service requires keys
-    if (service.requiredKeys && service.requiredKeys.length > 0) {
-      // Check stock availability for all required keys
-      const unavailableKeys = service.requiredKeys.filter(keyId => {
-        const availableStock = keyInventoryService.getAvailableStock(keyId);
-        return availableStock <= 0;
-      });
-
-      if (unavailableKeys.length > 0) {
-        setStatusUpdateMessage('Some required keys are out of stock');
-        return;
-      }
-
-      // Create reservations for all required keys
-      service.requiredKeys.forEach(keyId => {
-        try {
-          const reservation = keyInventoryService.createCartReservation(keyId, 1, selectedOrder?.id || 'temp');
-          setCartReservations(prev => ({
-            ...prev,
-            [keyId]: reservation.id
-          }));
-        } catch (error) {
-          setStatusUpdateMessage('Failed to reserve keys');
-          return;
-        }
-      });
+  const addService = (service: Service) => {
+    const existingItem = orderItems.find(item => item.serviceId === service.id);
+    if (existingItem) {
+      setOrderItems(orderItems.map(item =>
+        item.serviceId === service.id
+          ? { ...item, quantity: item.quantity + 1, subtotal: (item.quantity + 1) * item.price }
+          : item
+      ));
+    } else {
+      setOrderItems([...orderItems, {
+        serviceId: service.id,
+        quantity: 1,
+        price: service.price,
+        subtotal: service.price
+      }]);
     }
-
-    const newItem: OrderItem = {
-      serviceId,
-      quantity: 1,
-      price: service.price,
-      subtotal: service.price,
-    };
-
-    setOrderItems(prev => [...prev, newItem]);
   };
 
   const updateQuantity = (serviceId: string, change: number) => {
@@ -293,36 +294,19 @@ export function Orders() {
     resetForm();
   };
 
-  const handleStatusChange = (order: Order, newStatus: string) => {
-    const updatedOrder = { ...order, status: newStatus };
-    const updatedOrders = orders.map(o => o.id === order.id ? updatedOrder : o);
-    setOrders(updatedOrders);
-    setStorageItem('orders', updatedOrders);
-    setStatusUpdateMessage(`Order status updated to ${newStatus}`);
-
-    if (newStatus === 'completed') {
-      handleOrderComplete(order);
-    }
-  };
-
-  const handleOrderComplete = async (order: Order) => {
-    // Complete reservations and record sales
-    order.items.forEach(item => {
-      const service = services.find(s => s.id === item.serviceId);
-      if (!service?.requiredKeys) return;
-
-      service.requiredKeys.forEach(keyId => {
-        const reservationId = cartReservations[keyId];
-        if (!reservationId) return;
-        
-        keyInventoryService.completeCartReservation(reservationId);
-        keyInventoryService.recordSale(keyId, 1, item.price);
-        keyInventoryService.updateStock(keyId, -1);
-      });
+  const handleStatusChange = (orderId: string, newStatus: string) => {
+    const updatedOrders = orders.map(order => {
+      if (order.id === orderId) {
+        return {
+          ...order,
+          status: newStatus,
+          salesperson: user?.name ?? order.salesperson ?? 'Unknown'
+        };
+      }
+      return order;
     });
-
-    // Clear reservations
-    setCartReservations({});
+    setStorageItem('orders', updatedOrders);
+    setOrders(updatedOrders);
   };
 
   const handlePaymentMethodUpdate = (orderId: string, newPaymentMethod: 'cash' | 'card' | 'pay_later') => {
@@ -393,32 +377,16 @@ export function Orders() {
     }
   };
 
-  useEffect(() => {
-    return () => {
-      Object.values(cartReservations).forEach(reservationId => {
-        keyInventoryService.cancelCartReservation(reservationId);
-      });
-    };
-  }, [cartReservations]);
-
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-semibold text-gray-900">Orders</h1>
-        <div className="flex space-x-4">
-          <button
-            onClick={() => openModal()}
-            className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
-          >
-            New Order
-          </button>
-          <Link
-            to="/inventory"
-            className="inline-flex items-center justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 sm:w-auto"
-          >
-            Inventory
-          </Link>
-        </div>
+        <button
+          onClick={() => openModal()}
+          className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700"
+        >
+          New Order
+        </button>
       </div>
 
       {statusUpdateMessage && (
@@ -483,7 +451,7 @@ export function Orders() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <select
                         value={order.status}
-                        onChange={(e) => handleStatusChange(order, e.target.value)}
+                        onChange={(e) => handleStatusChange(order.id, e.target.value)}
                         disabled={order.status === 'completed' && (order.paymentMethod === 'card' || order.paymentMethod === 'cash')}
                         className={clsx(
                           'text-sm font-medium rounded-full px-3 py-1 border-2',
@@ -544,7 +512,7 @@ export function Orders() {
                       >
                         Edit
                       </button>
-                      {user?.role === 'admin' && (
+                      {user.role === 'admin' && (
                         <button
                           onClick={() => handleVoidOrder(order)}
                           className={clsx(
@@ -553,6 +521,12 @@ export function Orders() {
                               ? "hover:text-red-900 cursor-pointer" 
                               : "opacity-50 cursor-not-allowed"
                           )}
+                          disabled={!canVoidOrder(order)}
+                          title={
+                            canVoidOrder(order)
+                              ? "Void Order"
+                              : "Cannot void completed orders with cash or card payment"
+                          }
                         >
                           <Ban className="h-5 w-5 inline-block" />
                         </button>
@@ -841,7 +815,7 @@ export function Orders() {
                     <div
                       key={service.id}
                       className="border rounded-lg p-4 cursor-pointer hover:border-indigo-500"
-                      onClick={() => addOrderItem(service.id)}
+                      onClick={() => addService(service)}
                     >
                       <div className="flex justify-between items-start mb-2">
                         <h4 className="font-medium">{service.name}</h4>
@@ -907,7 +881,7 @@ export function Orders() {
                                 >
                                   <Palette className="h-5 w-5 text-gray-500" />
                                 </button>
-                                {getServiceById(item.serviceId)?.brands?.length > 0 && (
+                                {getServiceById(item.serviceId)?.brands && getServiceById(item.serviceId)?.brands.length > 0 && (
                                   <button
                                     type="button"
                                     onClick={() => setShowColorPicker(null)}
@@ -931,7 +905,7 @@ export function Orders() {
                                     onClick={() => handleColorToggle(item.serviceId, color)}
                                     className={clsx(
                                       "px-3 py-1 text-sm rounded-full border",
-                                      (selectedColors[item.serviceId] || []).includes(color)
+                                      selectedColors[item.serviceId]?.includes(color)
                                         ? "bg-indigo-100 border-indigo-500 text-indigo-700"
                                         : "border-gray-300 hover:border-gray-400"
                                     )}
@@ -940,16 +914,16 @@ export function Orders() {
                                   </button>
                                 ))}
                               </div>
-                              {(selectedColors[item.serviceId] || []).length > 0 && (
+                              {selectedColors[item.serviceId]?.length > 0 && (
                                 <div className="mt-2 text-sm text-gray-500">
-                                  Selected colors: {(selectedColors[item.serviceId] || []).join(', ')}
+                                  Selected colors: {selectedColors[item.serviceId].join(', ')}
                                 </div>
                               )}
                             </div>
                           )}
 
                           {/* Brand Selection */}
-                          {getServiceById(item.serviceId)?.brands?.length > 0 && (
+                          {getServiceById(item.serviceId)?.brands && getServiceById(item.serviceId)?.brands.length > 0 && (
                             <div className="mt-4 border-t pt-4">
                               <label className="block text-sm font-medium text-gray-700 mb-2">
                                 Brand (Optional)
@@ -957,16 +931,16 @@ export function Orders() {
                               <select
                                 value={selectedBrands[item.serviceId] || ''}
                                 onChange={(e) => handleBrandSelect(item.serviceId, e.target.value)}
-                                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
                               >
                                 <option value="">Select a brand</option>
-                                {getServiceById(item.serviceId)?.brands?.map(brandId => {
+                                {getServiceById(item.serviceId)?.brands.map(brandId => {
                                   const brand = brands.find(b => b.id === brandId);
-                                  return brand ? (
+                                  return brand && (
                                     <option key={brand.id} value={brand.id}>
                                       {brand.name}
                                     </option>
-                                  ) : null;
+                                  );
                                 })}
                               </select>
                             </div>
